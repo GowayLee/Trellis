@@ -1123,3 +1123,37 @@ Repaired Trellis package/spec routing, added repo and core spec indexes, fixed s
 ### Next Steps
 
 - None - task complete
+
+
+## Session 169: filterCommands 根因修：agentCapable && !hasHooks 平台 start 输出
+
+**Date**: 2026-06-22
+**Task**: filterCommands 根因修：agentCapable && !hasHooks 平台 start 输出
+**Package**: cli
+**Branch**: `main`
+
+### Summary
+
+外部用户反馈 trellis init --zcode 后既无 /trellis:start 也无 trellis-start skill。诊断：shared.ts filterCommands 当 agentCapable=true 时无条件过滤 start，但 Codex/ZCode/OpenCode/Reasonix 这 4 个 agentCapable && !hasHooks 平台没有 hook 兜底，两头空。Codex 之前用 resolveCodexTrellisStartSkill 临时补丁绕开。\n\n方案：根因修——把判定收紧为 agentCapable && hasHooks 才过滤；删 helper + 三处调用块；让标准 resolver 路径自然产出 start。配套 workflow.md 13 处平台矩阵补全（B1/B3/B5/B7/B12 + B9 加 ZCode/Reasonix，B8 排除——它写 hook auto-handles 对 pull-based 不成立，line 186 散文也补）。新增 zcode/opencode/reasonix init.integration 回归断言。\n\n净效果：删 helper + 3 处调用 + 1 处冗余断言；workflow.md 矩阵补全；3 条新测试。Tests 1249/1249 绿，typecheck 净，byte-identity 端到端验证（同模板+同 resolver+同 wrapper）。\n\n副产物：marketplace 子模块同步镜像（test/templates/trellis.test.ts parity 强制）；记 feedback memory：群聊真名不进任何 artifact（用户指出开盒）。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `40791b8b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
