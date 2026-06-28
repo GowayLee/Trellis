@@ -199,9 +199,9 @@ trellis channel interrupt <name> [text]
 ```
 
 Behavior:
-- Appends an `interrupt` event with `reason: "user"` and a replacement
-  instruction body; supervisor performs provider-level interrupt where
-  supported (Claude `/interrupt`, Codex turn cancel).
+- Appends an `interrupt_requested` event with `reason: "user"` and a
+  replacement instruction body; supervisor performs provider-level interrupt
+  where supported, then records an `interrupted` event.
 - Prints the appended event JSON on stdout.
 
 ---
@@ -214,7 +214,7 @@ Behavior:
 trellis channel spawn <name>
   [--scope project|global]
   [--agent <agent-name>]                  # loads .trellis/agents/<name>.md
-  [--provider claude|codex]               # overrides agent file
+  [--provider claude|codex|pi]            # overrides agent file
   [--as <worker-name>]                    # default: agent name
   [--cwd <path>]
   [--model <id>]
@@ -237,7 +237,10 @@ trellis channel spawn <name>
 Behavior:
 - Provider is validated against the adapter registry
   (`packages/cli/src/commands/channel/adapters/`); current: `claude`,
-  `codex`.
+  `codex`, `pi`.
+- Pi workers run in long-lived `pi --mode rpc` mode, not one-shot
+  `pi --mode json -p`; the supervisor sends each inbox message as a JSONL
+  `prompt` command on stdin.
 - Worker stays inbox-idle until the first `send --to <worker>`.
 - Records a `spawned` event with `pid`, `provider`, `agent`, `files`,
   `manifests`.
@@ -251,7 +254,7 @@ Behavior:
 ```bash
 trellis channel run [name?]
   [--agent <name>]
-  [--provider claude|codex]
+  [--provider claude|codex|pi]
   [--as <worker-name>]
   [--cwd <path>]
   [--model <id>]

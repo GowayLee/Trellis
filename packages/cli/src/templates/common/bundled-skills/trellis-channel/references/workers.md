@@ -1,9 +1,9 @@
 # Workers And Agent Cards
 
 Use workers when a peer agent should execute independently and report back
-through the channel event log. A worker is a registered child process (claude
-or codex) attached to a channel; the supervisor forwards inbox messages to it
-and translates its output back into channel events.
+through the channel event log. A worker is a registered child process (claude,
+codex, or pi) attached to a channel; the supervisor forwards inbox messages to
+it and translates its output back into channel events.
 
 ## Spawn
 
@@ -25,7 +25,7 @@ inbox-idle until a `send --to <worker>` (or a broadcast when
 Key `spawn` flags:
 
 - `--agent <name>` — load `.trellis/agents/<name>.md` (provider/model/as/system prompt defaults).
-- `--provider <claude|codex>` — overrides the agent card; validated against the adapter registry.
+- `--provider <claude|codex|pi>` — overrides the agent card; validated against the adapter registry.
 - `--as <name>` — channel worker handle; defaults to the agent name.
 - `--cwd <path>` — worker working directory (also the jail root for `--file`/`--jsonl`).
 - `--model <id>` — model override.
@@ -41,6 +41,9 @@ Key `spawn` flags:
 
 The success event `spawned` records `pid`, `provider`, `agent`, the injected
 `files`, and the resolved `manifests` so later spectators can audit context.
+Pi workers are launched as long-lived `pi --mode rpc` processes; channel inbox
+messages are delivered as JSONL `prompt` commands over stdin rather than via
+one-shot `pi --mode json -p`.
 
 ## Agent Cards
 
@@ -117,9 +120,10 @@ channel:
 ```bash
 trellis channel spawn cr-feature --agent check --as check-claude
 trellis channel spawn cr-feature --agent check --provider codex --as check-cx
+trellis channel spawn cr-feature --agent check --provider pi --as check-pi
 
 trellis channel wait cr-feature --as main \
-  --from check-claude,check-cx --kind done --all --timeout 15m
+  --from check-claude,check-cx,check-pi --kind done --all --timeout 15m
 ```
 
 `--all` requires `--from` and blocks until every listed worker has produced a
@@ -128,11 +132,11 @@ matching event; timeout exits with code **124** and prints
 
 ## Soft Interrupt — `interrupt`
 
-`channel interrupt` is the cooperative redirect: it appends an `interrupt`
-event (reason `"user"`) and, where the adapter supports it, issues a
-provider-level turn interrupt with a replacement instruction. Use it when the
-worker should drop its current turn and act on new input immediately, without
-losing its session.
+`channel interrupt` is the cooperative redirect: it appends an
+`interrupt_requested` event (reason `"user"`) and, where the adapter supports
+it, issues a provider-level turn interrupt with a replacement instruction. Use
+it when the worker should drop its current turn and act on new input
+immediately, without losing its session.
 
 ```bash
 echo "Stop refactoring the parser — switch to fixing the failing test in src/foo.ts" \
@@ -146,18 +150,18 @@ Flags:
 - `--scope <project|global>` — channel scope.
 - `--stdin` / `--text-file <path>` / `[text]` — replacement instruction body.
 
-The appended event has `kind: "interrupt"` — downstream `wait` / `messages`
-filters can subscribe with `--kind interrupt` to react to redirections (e.g.
-to log the rerouting, or to gate other workers behind a coordinator's
-correction).
+The request event has `kind: "interrupt_requested"`, followed by an
+`interrupted` event from the supervisor. Downstream `wait` / `messages` filters
+can subscribe with `--kind interrupt_requested` or `--kind interrupted` to react
+to redirections (for example, to log rerouting or gate other workers behind a
+coordinator's correction).
 
 For low-priority hints that should wait for the worker's next turn, send a
-plain tagged message instead:
+plain message instead:
 
 ```bash
 echo "Check this when you reach the next turn." \
-  | trellis channel send impl-task --as dispatcher --to codex-impl \
-      --stdin --tag question
+  | trellis channel send impl-task --as dispatcher --to codex-impl --stdin
 ```
 
 ## Hard Interrupt — `kill` + `--resume`
@@ -245,8 +249,8 @@ Inbox-relevant subcommands:
 - `wait <channel>` — block until matching events arrive.
   - `--as <agent>` **(required)** — `self` for filter context.
   - `--from <agents>` — CSV authors.
-  - `--kind <kind[,kind...]>` — CSV (OR semantics); supports `interrupt`,
-    `done`, `progress`, etc.
+  - `--kind <kind[,kind...]>` — CSV (OR semantics); supports
+    `interrupt_requested`, `interrupted`, `done`, `progress`, etc.
   - `--to <target>` — defaults to own agent (broadcast + explicit-to-me).
   - `--include-progress` — also wake on progress events.
   - `--all` — require every `--from` agent to match (timeout → exit **124**).
