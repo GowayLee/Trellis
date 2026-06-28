@@ -70,3 +70,36 @@ Moved Pi Trellis compact runtime context from visible input transform to a hidde
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Implement Pi channel worker adapter
+
+**Date**: 2026-06-28
+**Task**: Implement Pi channel worker adapter
+**Package**: cli
+
+### Summary
+
+Added Pi as a Trellis channel worker provider using pi --mode rpc. Implemented PiCtx adapter with JSONL RPC handshake, prompt/abort encoding, and event mapping. 12 unit tests. Synced all channel skills and platform docs to treat pi as a first-class provider with no bias.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `90004c2` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

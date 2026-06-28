@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 2
-- **Last Active**: 2026-06-26
+- **Total Sessions**: 3
+- **Last Active**: 2026-06-28
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~72 | Active |
+| `journal-1.md` | ~105 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 3 | 2026-06-28 | Implement Pi channel worker adapter | `90004c2` | `-` |
 | 2 | 2026-06-26 | Fix Pi context injection | `dd35d97` | `-` |
 | 1 | 2026-06-18 | Add Pi session adapter to trellis mem | `0c2cb5fb` | `-` |
 <!-- @@@/auto:session-history -->
