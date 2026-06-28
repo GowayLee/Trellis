@@ -1,0 +1,5 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/tasks/06-27-06-27-pi-channel-adapter/prd.md", "reason": "Acceptance criteria for Pi channel provider"}
+{"file": ".trellis/tasks/06-27-06-27-pi-channel-adapter/design.md", "reason": "Design decisions to verify against implementation"}
+{"file": ".trellis/tasks/06-27-06-27-pi-channel-adapter/research/pi-channel-adapter-research.md", "reason": "Pi RPC research constraints for review"}
+{"file": ".trellis/spec/cli/backend/commands-channel.md", "reason": "Updated channel code spec for Pi provider"}

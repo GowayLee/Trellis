@@ -1,0 +1,18 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/tasks/06-27-06-27-pi-channel-adapter/research/pi-channel-adapter-research.md", "reason": "Pi RPC/channel adapter research and implementation decisions"}
+{"file": "packages/cli/src/commands/channel/adapters/index.ts", "reason": "WorkerAdapter interface and provider registry"}
+{"file": "packages/cli/src/commands/channel/adapters/types.ts", "reason": "Channel adapter parse result and event types"}
+{"file": "packages/cli/src/commands/channel/adapters/claude.ts", "reason": "Existing stream-json adapter reference"}
+{"file": "packages/cli/src/commands/channel/adapters/codex.ts", "reason": "Existing RPC-style adapter reference"}
+{"file": "packages/cli/src/templates/pi/extensions/trellis/index.ts.txt", "reason": "Existing Pi subagent JSON event parsing and CLI resolution reference"}
+{"file": ".trellis/tasks/06-27-06-27-pi-channel-adapter/design.md", "reason": "Technical design for Pi RPC channel adapter"}
+{"file": ".trellis/tasks/06-27-06-27-pi-channel-adapter/implement.md", "reason": "Execution plan and validation checklist"}
+{"file": "packages/cli/src/commands/channel/agent-loader.ts", "reason": "Agent provider frontmatter validation may need pi"}
+{"file": "packages/cli/src/commands/channel/index.ts", "reason": "CLI provider help and validation call sites"}
+{"file": "packages/cli/src/commands/channel/supervisor/stdout.ts", "reason": "ParseResult side effects and terminal event handling"}
+{"file": "packages/cli/src/commands/channel/supervisor/inbox.ts", "reason": "Adapter input readiness and interrupt delivery"}
+{"file": "packages/cli/test/commands/channel-codex-adapter.test.ts", "reason": "Existing adapter unit test style"}
+{"file": "packages/cli/src/templates/common/bundled-skills/trellis-channel/references/command-reference.md", "reason": "Provider documentation source"}
+{"file": "packages/cli/src/templates/common/bundled-skills/trellis-channel/references/workers.md", "reason": "Worker provider documentation source"}
+{"file": "packages/cli/src/templates/common/bundled-skills/trellis-channel/references/workflows.md", "reason": "Channel workflow docs touched for provider/docs consistency"}
+{"file": "packages/cli/src/templates/common/bundled-skills/trellis-channel/references/progress-debugging.md", "reason": "Channel debugging docs touched for interrupt terminology consistency"}
