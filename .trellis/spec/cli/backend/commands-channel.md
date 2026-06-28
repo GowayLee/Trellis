@@ -13,7 +13,7 @@ integration via env wiring and storage layout).
 |---------|------------------------------------|
 | New top-level `channel` command tree (14 subcommands) | New CLI surface — signatures must be locked |
 | Event-stream protocol (events.jsonl, fixed kind taxonomy) | Cross-component contract: workers, supervisor, CLI all parse the same payloads |
-| Per-worker subprocess supervision (claude / codex) | Infra integration: process lifecycle + signal handling |
+| Per-worker subprocess supervision (claude / codex / pi) | Infra integration: process lifecycle + signal handling |
 | Disk layout migration (legacy flat → project buckets) | Infra: irreversible filesystem move + cross-tool path conventions (claude code parity) |
 | Worker provider plugin (`WorkerAdapter`) | Extension contract: future providers depend on shape stability |
 | Env wiring (`TRELLIS_CHANNEL_ROOT/PROJECT/AS`) | Cross-process configuration |
@@ -60,7 +60,7 @@ trellis channel create <name> [opts]
 trellis channel spawn <name> [opts]
   --scope <scope>        : project | global
   --agent <name>         : load .trellis/agents/<name>.md (sets provider / as / system prompt)
-  --provider <p>         : claude | codex (overrides agent)
+  --provider <p>         : claude | codex | pi (overrides agent)
   --as <worker-name>     : worker identifier (default = agent name)
   --cwd <path>           : worker cwd (default process.cwd())
   --model <id>           : model override
@@ -306,7 +306,7 @@ formatThreadList(states): string[]
 
 // adapters/index.ts
 interface WorkerAdapter {
-  readonly provider: Provider;                              // "claude" | "codex"
+  readonly provider: Provider;                              // "claude" | "codex" | "pi"
   buildArgs(view: SupervisorView): string[];                // CLI args for spawn()
   createCtx(): AdapterCtx;                                  // per-worker state
   handshake?(args: {child, ctx, view}): Promise<void>;      // optional pre-traffic init
@@ -349,7 +349,7 @@ type ChannelEventKind = "create" | "join" | "leave" | "message" | "thread" | "co
 | Kind | Required (beyond base) | Optional | Producer |
 |------|------------------------|----------|----------|
 | `create` | `cwd: string`, `scope: "project"\|"global"`, `type: "chat"\|"forum"` | `task: string`, `project: string`, `labels: string[]`, `description: string`, `context: ContextEntry[]`, `ephemeral: true`, `origin: "cli"`, `meta: object` | CLI |
-| `spawned` | `as: string`, `provider: "claude"\|"codex"`, `pid: number` | `agent: string`, `files: string[]`, `manifests: string[]`, `inboxPolicy: "explicitOnly"\|"broadcastAndExplicit"` | supervisor / core `spawnWorker` |
+| `spawned` | `as: string`, `provider: "claude"\|"codex"\|"pi"`, `pid: number` | `agent: string`, `files: string[]`, `manifests: string[]`, `inboxPolicy: "explicitOnly"\|"broadcastAndExplicit"` | supervisor / core `spawnWorker` |
 | `message` | `text: string` | `to: string \| string[]` | any |
 | `thread` | `action: ThreadAction`, `thread: string` | `title`, `text`, `description`, `status`, `labels`, `assignees`, `summary`, `context`, `newThread` | CLI / agents |
 | `context` | `target: "channel"\|"thread"`, `action: "add"\|"delete"`, `context: ContextEntry[]` | `thread` when `target="thread"` | CLI / agents |
@@ -676,6 +676,78 @@ if (
 }
 ```
 
+### Pi RPC channel adapter
+
+#### 1. Scope / Trigger
+
+- Trigger: `packages/cli/src/commands/channel/adapters/pi.ts` converts Pi
+  RPC-mode JSONL into Trellis channel events.
+- Pi channel workers are long-lived subprocesses. They MUST be launched with
+  `pi --mode rpc`, not one-shot `pi --mode json -p`.
+- The supervisor owns process lifetime and inbox forwarding; the adapter owns
+  RPC request framing, handshake readiness, and event translation.
+
+#### 2. Launch and input contract
+
+`buildPiArgs(view)` must include:
+
+```text
+--mode rpc --no-session --no-extensions --no-skills --no-prompt-templates --no-themes --no-approve
+```
+
+Add `--model <id>` when a model override is present and
+`--append-system-prompt <text>` when the channel system prompt is non-empty.
+The resource-disabling flags keep channel workers from loading project Pi
+extensions/skills/templates that could recursively re-enter Trellis agent
+startup behavior; the channel spawn system prompt and context files are the
+source of worker context.
+
+`encodeUserMessage(text, ctx)` writes one JSONL command:
+
+```json
+{"id":1,"type":"prompt","message":"..."}
+```
+
+`encodeInterruptMessage(text, ctx)` sends only `{"type":"abort"}` first and
+stores the replacement text. After the successful abort response, the parser
+must emit a `side.reply` prompt with the interrupt prefix and
+`streamingBehavior:"followUp"`. Do not race a replacement prompt while Pi is
+still streaming.
+
+#### 3. Event mapping contract
+
+| Pi RPC stdout | Channel result |
+|---------------|----------------|
+| successful `response.command="get_state"` | mark `ctx.ready=true`; persist `sessionId` or `sessionFile` through `side.persistSessionId` when present |
+| `response.success=false` after handshake | emit `error{provider:"pi"}` and resolve the pending request side effect |
+| `get_state` `response.success=false` during handshake | set `ctx.handshakeError`; let supervisor handshake catch emit the single terminal `error` |
+| successful `prompt` response | no channel event; acceptance only |
+| successful `abort` response with pending replacement | no channel event; emit `side.reply` prompt as described above |
+| invalid JSON line | emit `error` with a short raw excerpt |
+| `message_update` text delta | `progress.detail = {kind:"output", text_delta}` |
+| `message_update` thinking delta | `progress.detail = {kind:"reasoning", text_delta}` |
+| `message_end` assistant text | `message{text}` |
+| `message_end` with `stopReason:"error"|"aborted"` or `errorMessage` | emit `error`, mark current turn terminal-error |
+| expected `message_end stopReason:"aborted"` after channel interrupt abort | suppress error/message output and keep replacement turn active |
+| `tool_execution_start/update/end` | emit `progress.detail.kind="tool"`; tool-level errors stay progress and do not suppress later `done` |
+| `extension_error` | emit terminal `error{provider:"pi"}` |
+| `agent_end` | emit `done` unless current turn already emitted a terminal error or is the expected end of an interrupt abort |
+
+`message_end` is not a turn-completion boundary. Pi may emit multiple assistant
+messages in one run; `agent_end` is the safe completion signal for `wait --kind
+done`.
+
+#### 4. Tests Required
+
+- Unit: args use RPC mode and never include `--mode json` or `-p`.
+- Unit: `get_state` response marks ready and persists session identity.
+- Unit: user prompt and interrupt framing produce valid JSONL.
+- Unit: abort acknowledgement emits a deferred follow-up prompt through
+  `side.reply`.
+- Unit: text/thinking deltas, assistant message text, tool events,
+  `agent_end`, command failure, and invalid JSON map to the expected channel
+  events.
+
 ### Codex progress stream metadata
 
 #### 1. Scope / Trigger
@@ -926,7 +998,7 @@ only applies to per-worker supervisor cleanup.
 | `spawn` with no `--provider` and no `--agent` providing it | throw `"Missing --provider (and the agent definition has no \`provider:\` frontmatter)"` |
 | `spawn` with no `--as` and no `--agent` providing fallback name | throw `"Missing --as (no agent name to fall back to)"` |
 | `spawn` and worker name already has a live pid | throw `"Worker '<as>' is already running in channel '<name>' (pid <N>)"` |
-| `spawn` and `--provider` not in REGISTRY | exit 1, stderr `"--provider must be one of: claude, codex"` |
+| `spawn` and `--provider` not in REGISTRY | exit 1, stderr `"--provider must be one of: claude, codex, pi"` |
 | `send` with none of `--stdin`/`--text-file`/`[text]` | throw (missing body) |
 | `send`/`spawn`/`wait`/`messages`/`kill`/`rm` with channel in both project and global scopes but no `--scope` | throw `"Channel '<name>' exists in global and project scopes. Use --scope global or --scope project."` before writing |
 | `post` against a `chat` channel | throw `"Channel '<name>' is type 'chat'. 'post' requires a forum channel."` |
@@ -1112,7 +1184,7 @@ trellis channel send trellis-issue --scope global --as main --thread forum-mode 
 | `watchEvents` modes | integration | (a) default reads from EOF, (b) `fromStart:true` reads from byte 0, (c) `sinceSeq:N` skips events with seq ≤ N |
 | `matchesFilter` `to` semantics | unit | (a) event with no `to` passes when filter.to set (broadcast OK), (b) event with `to=X` only passes filter.to=X, (c) `filter.to="exclusive"` requires explicit `to` |
 | Spawn-fail path (ENOENT) | e2e | `PATH=/no/claude trellis channel spawn ...` → events.jsonl has ONE error event, no spawned, no killed; supervisor exited; pid file removed |
-| Happy turn (claude / codex) | e2e | spawn → send "hi" → wait done; assert events sequence is `create → spawned → message(to) → ...progress... → message(by:worker) → done` with no synthesised events |
+| Happy turn (claude / codex / pi) | e2e | spawn → send "hi" → wait done; assert events sequence is `create → spawned → message(to) → ...progress... → message(by:worker) → done` with no synthesised events |
 | Codex streamed delta metadata | unit/fixture | `parseCodexLine` stores `item/started` metadata; deltas keep `text_delta`, add `kind`, add `stream_id` from `itemId`, and route interleaved `final_answer` / `commentary` streams into different lanes |
 | Cold-exit fallback synthesis | e2e | kill worker child PID directly (bypassing supervisor); assert `finalizeOnExit` synthesises terminal event with `by=workerName`, `synthesized:true` |
 | Kill ladder | e2e | `channel kill`, assert events.jsonl has `killed{reason:"explicit-kill", signal:"SIGTERM"}` AND supervisor process gone within 6s |

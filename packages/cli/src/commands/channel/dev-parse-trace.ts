@@ -2,6 +2,8 @@ import fs from "node:fs";
 
 import { parseClaudeLine } from "./adapters/claude.js";
 import { createCodexCtx, parseCodexLine } from "./adapters/codex.js";
+import type { Provider } from "./adapters/index.js";
+import { createPiCtx, parsePiLine } from "./adapters/pi.js";
 import type { ParseResult } from "./adapters/types.js";
 
 /**
@@ -11,12 +13,11 @@ import type { ParseResult } from "./adapters/types.js";
  * Not user-facing; used during adapter development to verify against
  * real-CLI fixtures (see research/probes/).
  *
- * NOTE: codex traces only contain inbound lines (server → us). For probe
- * fixtures recorded by codex-probe.mjs, outbound request ids are not in the
- * trace; we pre-seed the ctx with the ids the probe used (1 for initialize,
- * 2 for thread/start, 3 for turn/start) so id-matching works.
+ * NOTE: RPC traces may only contain inbound lines (server → us). For probe
+ * fixtures, outbound request ids may not be in the trace; we pre-seed the
+ * common startup ids so id-matching works for codex and pi responses.
  */
-export function parseTrace(adapter: "claude" | "codex", file: string): void {
+export function parseTrace(adapter: Provider, file: string): void {
   const raw = fs.readFileSync(file, "utf-8");
   const lines = raw.split("\n");
   let lineNo = 0;
@@ -31,18 +32,34 @@ export function parseTrace(adapter: "claude" | "codex", file: string): void {
     return;
   }
 
-  // adapter === "codex"
-  const ctx = createCodexCtx();
-  // Pre-seed pending so the recorded responses (id=1,2,3) match.
-  ctx.pending.set(1, "initialize");
-  ctx.pending.set(2, "thread/start");
-  ctx.pending.set(3, "turn/start");
+  if (adapter === "codex") {
+    const ctx = createCodexCtx();
+    // Pre-seed pending so the recorded responses (id=1,2,3) match.
+    ctx.pending.set(1, "initialize");
+    ctx.pending.set(2, "thread/start");
+    ctx.pending.set(3, "turn/start");
+    ctx.nextId = 4;
+
+    for (const line of lines) {
+      lineNo++;
+      if (!line.trim()) continue;
+      const result = parseCodexLine(line, ctx);
+      printResult(lineNo, result);
+    }
+    return;
+  }
+
+  // adapter === "pi"
+  const ctx = createPiCtx();
+  ctx.pending.set(1, "get_state");
+  ctx.pending.set(2, "prompt");
+  ctx.pending.set(3, "abort");
   ctx.nextId = 4;
 
   for (const line of lines) {
     lineNo++;
     if (!line.trim()) continue;
-    const result = parseCodexLine(line, ctx);
+    const result = parsePiLine(line, ctx);
     printResult(lineNo, result);
   }
 }

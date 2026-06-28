@@ -133,7 +133,7 @@ Useful filters:
 ```bash
 trellis channel wait T --as main --from check --kind done --timeout 15m
 trellis channel wait T --as main --from check,check-cx --kind done --all --timeout 15m
-trellis channel wait T --as worker --tag interrupt --timeout 1h
+trellis channel wait T --as worker --kind interrupt_requested --timeout 1h
 trellis channel wait T --as main --thread release-note --action status --timeout 10m
 ```
 
@@ -149,7 +149,7 @@ Don't make it a habit, and **never** do it for forum channels.
 Why subcommands first:
 
 - `messages` already replays the file with filters (`--kind`, `--from`,
-  `--last`, `--tag`, `--thread`, `--action`) and gives you `--raw` for the
+  `--last`, `--thread`, `--action`) and gives you `--raw` for the
   exact JSON. Anything you would write a one-liner for, `messages` already
   does.
 - `wait` consumes the same file with EOF semantics — re-implementing that

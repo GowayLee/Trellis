@@ -7,7 +7,7 @@
  *   ---
  *   name: architect
  *   description: System architect ...
- *   provider: claude       # claude | codex; used as default --provider
+ *   provider: claude       # claude | codex | pi; used as default --provider
  *   model: claude-opus-4-7 # CLI-specific model id; optional
  *   labels: [design]       # optional metadata
  *   ---
@@ -21,10 +21,12 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import type { Provider } from "./adapters/index.js";
+
 export interface AgentDefinition {
   name: string;
   description?: string;
-  provider?: "claude" | "codex";
+  provider?: Provider;
   model?: string;
   labels?: string[];
   systemPrompt: string;
@@ -107,12 +109,10 @@ export function loadAgent(
   };
 }
 
-function normalizeProvider(
-  v: string | undefined,
-): "claude" | "codex" | undefined {
+function normalizeProvider(v: string | undefined): Provider | undefined {
   if (!v) return undefined;
   const t = v.trim().toLowerCase();
-  if (t === "claude" || t === "codex") return t;
+  if (t === "claude" || t === "codex" || t === "pi") return t;
   return undefined;
 }
 

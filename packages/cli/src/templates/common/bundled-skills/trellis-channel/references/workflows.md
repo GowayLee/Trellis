@@ -5,7 +5,7 @@ Use these patterns by intent. Prefer durable channels for multi-round work and
 
 ## Pattern A: Multi-round Brainstorm
 
-Use when the user says "和 codex/claude 讨论一下", "brainstorm", or "拉一个 agent
+Use when the user says "和 codex/claude/pi 讨论一下", "brainstorm", or "拉一个 agent
 进来一起看".
 
 ```bash
@@ -64,7 +64,7 @@ trellis channel spawn cr-foo \
 
 trellis channel send cr-foo --as main --to check --text-file /tmp/cr-brief.md
 trellis channel wait cr-foo --as main --kind done --from check --timeout 15m
-trellis channel messages cr-foo --kind message --from check --tag final_answer
+trellis channel messages cr-foo --kind message --from check --last 1
 ```
 
 For implement work, use `--agent implement` and send an implementation brief.
@@ -86,9 +86,14 @@ trellis channel spawn cr-feature --agent check --provider codex --as check-cx \
   --jsonl "$TASK/check.jsonl" --file "$TASK/prd.md" --file "$TASK/design.md" \
   --timeout 15m
 
+trellis channel spawn cr-feature --agent check --provider pi --as check-pi \
+  --jsonl "$TASK/check.jsonl" --file "$TASK/prd.md" --file "$TASK/design.md" \
+  --timeout 15m
+
 trellis channel send cr-feature --as main --to check --text-file /tmp/cr-brief.md
 trellis channel send cr-feature --as main --to check-cx --text-file /tmp/cr-brief.md
-trellis channel wait cr-feature --as main --kind done --from check,check-cx --all --timeout 15m
+trellis channel send cr-feature --as main --to check-pi --text-file /tmp/cr-brief.md
+trellis channel wait cr-feature --as main --kind done --from check,check-cx,check-pi --all --timeout 15m
 ```
 
 `--all` means every listed worker must emit a matching event.
@@ -97,6 +102,7 @@ trellis channel wait cr-feature --as main --kind done --from check,check-cx --al
 
 ```bash
 trellis channel run --provider codex --message "say hi in 3 words" --timeout 1m
+trellis channel run --provider pi --message "say hi in 3 words" --timeout 1m
 trellis channel run --agent plan --message-file /tmp/plan-question.md --timeout 10m
 ```
 

@@ -35,6 +35,15 @@ import {
   parseCodexLine,
   type CodexCtx,
 } from "./codex.js";
+import {
+  buildPiArgs,
+  createPiCtx,
+  encodePiInterruptMessage,
+  encodePiRequest,
+  encodePiUserMessage,
+  parsePiLine,
+  type PiCtx,
+} from "./pi.js";
 import type { ParseResult } from "./types.js";
 
 // `Provider` is derived from REGISTRY at the bottom of this file, so
@@ -173,6 +182,43 @@ const codexAdapter: WorkerAdapter<CodexCtx> = {
   },
 };
 
+/** Pi adapter — JSONL RPC via `pi --mode rpc`, requires get_state handshake. */
+const piAdapter: WorkerAdapter<PiCtx> = {
+  provider: "pi",
+  buildArgs(view) {
+    return buildPiArgs(view);
+  },
+  createCtx() {
+    return createPiCtx();
+  },
+  async handshake({ child, ctx }) {
+    const state = encodePiRequest(ctx, "get_state", {}, "get_state");
+    child.stdin.write(state.line);
+    const deadline = Date.now() + 30_000;
+    while (!ctx.ready && !ctx.handshakeError && Date.now() < deadline) {
+      await sleep(50);
+    }
+    if (ctx.handshakeError) {
+      throw new Error(ctx.handshakeError);
+    }
+    if (!ctx.ready) {
+      throw new Error("Pi get_state did not complete within 30s");
+    }
+  },
+  isReady(ctx) {
+    return ctx.ready === true;
+  },
+  parseLine(line, ctx) {
+    return parsePiLine(line, ctx);
+  },
+  encodeUserMessage(text, ctx) {
+    return encodePiUserMessage(ctx, text).line;
+  },
+  encodeInterruptMessage(text, ctx) {
+    return encodePiInterruptMessage(ctx, text).line;
+  },
+};
+
 /**
  * Single source of truth for known providers. Adding a new adapter:
  *   1. write `adapters/<name>.ts`
@@ -182,6 +228,7 @@ const codexAdapter: WorkerAdapter<CodexCtx> = {
 const REGISTRY = {
   claude: claudeAdapter,
   codex: codexAdapter,
+  pi: piAdapter,
 } as const;
 
 export type Provider = keyof typeof REGISTRY;
